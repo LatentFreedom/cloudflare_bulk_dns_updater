@@ -1,0 +1,15 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+
+# Data files
+data/cloudflare_a_records.json
+data/cloudflare_zones.json
+
+# Log files
+*.log
+
+# Lock file
+package-lock.json

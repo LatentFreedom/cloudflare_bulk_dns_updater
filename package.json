@@ -1,0 +1,18 @@
+{
+  "name": "cloudflare_bulk_dns_updating",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "fetchzones": "node src/fetch_zones.js",
+    "fetchzonesa": "node src/fetch_zones_a.js",
+    "updatedns": "node src/update_dns.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "latentfreedom",
+  "license": "ISC",
+  "description": "Update DNS A records in bulk given the OLD_IP you want to be updated and the NEW_IP to update the record to",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5"
+  }
+}
