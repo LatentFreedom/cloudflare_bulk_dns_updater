@@ -16,13 +16,32 @@ const isValidIPAddress = (ip) => {
 // Function to fetch all zones
 const fetchAllZones = async () => {
     try {
-        const response = await axios.get('https://api.cloudflare.com/client/v4/zones', {
-            headers: {
-                'Authorization': `Bearer ${API_TOKEN}`,
-                'Content-Type': 'application/json',
-            },
-        });
-        return response.data.result; // Returns an array of zone objects
+        let allZones = [];
+        let page = 1;
+        let hasMorePages = true;
+        
+        while (hasMorePages) {
+            const response = await axios.get('https://api.cloudflare.com/client/v4/zones', {
+                headers: {
+                    'Authorization': `Bearer ${API_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+                params: {
+                    page: page,
+                    per_page: 50  // Maximum allowed by Cloudflare
+                }
+            });
+            
+            const { result, result_info } = response.data;
+            allZones = [...allZones, ...result];
+            
+            // Check if we've reached the last page
+            hasMorePages = result_info.page < result_info.total_pages;
+            page++;
+        }
+        
+        console.log(`Found ${allZones.length} zones in total`);
+        return allZones;
     } catch (error) {
         console.error('Error fetching zones:', error.response ? error.response.data : error.message);
         return [];
@@ -30,23 +49,43 @@ const fetchAllZones = async () => {
 };
 
 // Function to fetch all A records for a zone
-const fetchARecords = async (zoneId) => {
+const fetchARecords = async (zoneId, zoneName) => {
     try {
-        const response = await axios.get(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records?type=A`, {
-            headers: {
-                'Authorization': `Bearer ${API_TOKEN}`,
-                'Content-Type': 'application/json',
-            },
-        });
-        return response.data.result; // Returns an array of DNS records
+        let allRecords = [];
+        let page = 1;
+        let hasMorePages = true;
+        
+        while (hasMorePages) {
+            const response = await axios.get(`https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records`, {
+                headers: {
+                    'Authorization': `Bearer ${API_TOKEN}`,
+                    'Content-Type': 'application/json',
+                },
+                params: {
+                    type: 'A',
+                    page: page,
+                    per_page: 100  // Maximum allowed by Cloudflare
+                }
+            });
+            
+            const { result, result_info } = response.data;
+            allRecords = [...allRecords, ...result];
+            
+            // Check if we've reached the last page
+            hasMorePages = result_info.page < result_info.total_pages;
+            page++;
+        }
+        
+        console.log(`Found ${allRecords.length} A records for domain ${zoneName}`);
+        return allRecords;
     } catch (error) {
-        console.error(`Error fetching A records for zone ${zoneId}:`, error.response ? error.response.data : error.message);
+        console.error(`Error fetching A records for domain ${zoneName}:`, error.response ? error.response.data : error.message);
         return [];
     }
 };
 
 // Function to update a DNS record
-const updateDNSRecord = async (zoneId, recordId, name) => {
+const updateDNSRecord = async (zoneId, recordId, name, zoneName) => {
     try {
         await axios.put(
             `https://api.cloudflare.com/client/v4/zones/${zoneId}/dns_records/${recordId}`,
@@ -64,9 +103,9 @@ const updateDNSRecord = async (zoneId, recordId, name) => {
                 },
             }
         );
-        console.log(`Updating: ${name} from ${OLD_IP} to ${NEW_IP}`);
+        console.log(`Updating: ${name} (${zoneName}) from ${OLD_IP} to ${NEW_IP}`);
     } catch (error) {
-        console.error(`Error updating DNS record ${name}:`, error.response ? error.response.data : error.message);
+        console.error(`Error updating DNS record ${name} (${zoneName}):`, error.response ? error.response.data : error.message);
     }
 };
 
@@ -87,7 +126,7 @@ const updateMatchingARecords = async () => {
 
     // Loop through each zone and fetch its A records
     for (const zone of zones) {
-        const aRecords = await fetchARecords(zone.id);
+        const aRecords = await fetchARecords(zone.id, zone.name);
 
         // Loop through each A record and update if necessary
         for (const record of aRecords) {
@@ -95,16 +134,16 @@ const updateMatchingARecords = async () => {
 
             // Case 1: If the DNS record already has the new IP
             if (currentIP === NEW_IP) {
-                console.log(`No update: ${record.name} is already ${NEW_IP}`);
+                console.log(`No update: ${record.name} (${zone.name}) is already ${NEW_IP}`);
             }
             // Case 2: If the DNS record has the old IP, update it to the new IP
             else if (currentIP === OLD_IP) {
-                console.log(`Updating: ${record.name} from ${OLD_IP} to ${NEW_IP}`);
-                await updateDNSRecord(zone.id, record.id, record.name);
+                console.log(`Updating: ${record.name} (${zone.name}) from ${OLD_IP} to ${NEW_IP}`);
+                await updateDNSRecord(zone.id, record.id, record.name, zone.name);
             }
             // Case 3: If the DNS record has a different IP than the old IP, skip it
             else {
-                console.log(`Skipping: ${record.name} (current IP: ${currentIP})`);
+                console.log(`Skipping: ${record.name} (${zone.name}) (current IP: ${currentIP})`);
             }
         }
     }
